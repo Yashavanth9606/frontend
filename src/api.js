@@ -1,4 +1,4 @@
-const BASE = "https://backend-6znt.onrender.com";
+const BASE = "https://backend-6znt.onrender.com/api";
 
 const getHeaders = () => ({
   'Content-Type': 'application/json',
