@@ -5,13 +5,27 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 
 const app = express()
-app.use(cors())
+
+// ─── CORS (allow your Render frontend + localhost dev) ────────
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:3000'
+].filter(Boolean)
+
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) callback(null, true)
+    else callback(new Error('Not allowed by CORS'))
+  },
+  credentials: true
+}))
 app.use(express.json())
 
-const JWT_SECRET = 'edulearn_secret_key_2024'
+const JWT_SECRET = process.env.JWT_SECRET || 'edulearn_secret_key_2024'
 
 // ─── CONNECT TO MONGODB ──────────────────────────────────────
-mongoose.connect('mongodb://localhost:27017/e-learn')
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/e-learn')
   .then(() => console.log('✅ MongoDB Connected → e-learn database'))
   .catch(err => console.error('❌ MongoDB Error:', err))
 
@@ -56,6 +70,9 @@ const auth = (req, res, next) => {
     res.status(401).json({ message: 'Invalid token' })
   }
 }
+
+// ─── HEALTH CHECK ────────────────────────────────────────────
+app.get('/', (req, res) => res.json({ status: 'E-Learn API running ✅' }))
 
 // ─── REGISTER ────────────────────────────────────────────────
 app.post('/api/auth/register', async (req, res) => {
@@ -120,7 +137,81 @@ app.post('/api/auth/login', async (req, res) => {
   }
 })
 
-// ─── GET ALL USERS (for admin) ───────────────────────────────
+// ─── GITHUB OAUTH ────────────────────────────────────────────
+app.get('/api/auth/github', (req, res) => {
+  const params = new URLSearchParams({
+    client_id: process.env.GITHUB_CLIENT_ID,
+    redirect_uri: `${process.env.BACKEND_URL}/api/auth/github/callback`,
+    scope: 'user:email'
+  })
+  res.redirect(`https://github.com/login/oauth/authorize?${params}`)
+})
+
+app.get('/api/auth/github/callback', async (req, res) => {
+  try {
+    const { code } = req.query
+
+    // Exchange code for access token
+    const tokenRes = await fetch('https://github.com/login/oauth/access_token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        client_id: process.env.GITHUB_CLIENT_ID,
+        client_secret: process.env.GITHUB_CLIENT_SECRET,
+        code
+      })
+    })
+    const tokenData = await tokenRes.json()
+    const accessToken = tokenData.access_token
+
+    // Get GitHub user profile
+    const profileRes = await fetch('https://api.github.com/user', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+    const profile = await profileRes.json()
+
+    // Get primary email if not public
+    let email = profile.email
+    if (!email) {
+      const emailRes = await fetch('https://api.github.com/user/emails', {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
+      const emails = await emailRes.json()
+      email = emails.find(e => e.primary)?.email
+    }
+
+    if (!email) {
+      return res.redirect(`${process.env.FRONTEND_URL}/login?error=no_email`)
+    }
+
+    // Find or create user
+    let user = await User.findOne({ email })
+    if (!user) {
+      user = await User.create({
+        name: profile.name || profile.login,
+        email,
+        password: await bcrypt.hash(Math.random().toString(36), 10),
+        role: 'student'
+      })
+      console.log(`✅ GitHub signup: ${user.name} | ${email}`)
+    } else {
+      console.log(`✅ GitHub login: ${user.name} | ${email}`)
+    }
+
+    const token = jwt.sign(
+      { id: user._id, name: user.name, email: user.email, role: user.role },
+      JWT_SECRET, { expiresIn: '7d' }
+    )
+
+    // Redirect to frontend with token
+    res.redirect(`${process.env.FRONTEND_URL}/auth/callback?token=${token}&name=${encodeURIComponent(user.name)}&role=${user.role}&id=${user._id}&email=${encodeURIComponent(user.email)}`)
+  } catch (err) {
+    console.error('GitHub OAuth error:', err)
+    res.redirect(`${process.env.FRONTEND_URL}/login?error=github_failed`)
+  }
+})
+
+// ─── GET ALL USERS (admin) ───────────────────────────────────
 app.get('/api/users', auth, async (req, res) => {
   try {
     const users = await User.find({}, '-password')
@@ -185,8 +276,7 @@ app.get('/api/progress/:courseId', auth, async (req, res) => {
 })
 
 // ─── START ───────────────────────────────────────────────────
-app.listen(5000, () => {
-  console.log('🚀 Server running on http://localhost:5000')
-  console.log('📦 Routes: POST /api/auth/register | POST /api/auth/login')
-  console.log('📦 Routes: GET/POST /api/enrollments | GET/POST /api/progress')
+const PORT = process.env.PORT || 5000
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`)
 })
