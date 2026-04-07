@@ -1,0 +1,18 @@
+.about-page { min-height: 100vh; }
+.about-hero { background: linear-gradient(135deg,var(--surface),var(--bg2)); padding: 120px 0 60px; border-bottom: 1px solid var(--border); text-align: center; }
+.about-hero h1 { font-size: clamp(1.8rem,4vw,2.8rem); margin: 12px 0; }
+.about-hero p { color: var(--text2); max-width: 600px; margin: 0 auto; line-height: 1.7; }
+.about-stats { background: var(--surface); border-bottom: 1px solid var(--border); padding: 40px 0; }
+.astats-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 24px; }
+.mission-inner { display: grid; grid-template-columns: 1fr 1fr; gap: 70px; align-items: start; }
+.mission-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.mission-card { padding: 20px; }
+.team-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 20px; }
+.team-card { padding: 28px 20px; text-align: center; }
+.team-avatar { font-size: 3rem; margin-bottom: 12px; }
+.team-card h3 { font-size: 1rem; margin-bottom: 4px; }
+.team-role { font-size: 0.82rem; color: var(--purple-light); margin-bottom: 10px; font-weight: 600; }
+.about-cta { background: linear-gradient(135deg,rgba(124,58,237,0.15),rgba(229,25,58,0.1)); border-top: 1px solid var(--border); padding: 80px 0; }
+.about-cta h2 { font-size: clamp(1.6rem,3vw,2.2rem); }
+@media (max-width: 900px) { .mission-inner { grid-template-columns: 1fr; } .team-grid { grid-template-columns: repeat(2,1fr); } .astats-grid { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 600px) { .mission-cards { grid-template-columns: 1fr; } .team-grid { grid-template-columns: 1fr 1fr; } }
